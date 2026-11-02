@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>EncoderCraft</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app">
+    <!-- Toolbar -->
+    <header class="toolbar">
+      <div class="brand">EncoderCraft</div>
+      <div class="tb-group">
+        <button id="addFiles" class="tb" title="Add media files to the queue">+ Add Source</button>
+        <button id="addProject" class="tb" title="Add sequences from a FilmCraft project">FilmCraft Project&hellip;</button>
+      </div>
+      <div class="tb-group">
+        <button id="startQueue" class="tb go" title="Start Queue (Ctrl+Enter)"><span aria-hidden="true">&#9654;</span> Start Queue</button>
+        <button id="stopQueue" class="tb stop" title="Stop all running and waiting items"><span aria-hidden="true">&#9632;</span> Stop</button>
+        <button id="removeSel" class="tb" title="Remove selected items (Delete)">Remove</button>
+      </div>
+      <div class="tb-spacer"></div>
+      <div id="nodeChips" class="chips"></div>
+      <label class="target"><span>Target</span><select id="targetSelect" aria-label="Active Target Node"></select></label>
+      <button id="serversBtn" class="tb" title="Servers">Servers&hellip;</button>
+    </header>
+
+    <div id="banner" class="banner" hidden></div>
+
+    <div class="panes">
+      <!-- Left: Media Browser + Preset Browser -->
+      <aside class="left">
+        <section class="panel browser">
+          <div class="panel-head">Media Browser</div>
+          <div class="pathbar">
+            <button id="brUp" class="mini" aria-label="Up one folder" title="Up">&uarr;</button>
+            <input id="brPath" type="text" spellcheck="false" aria-label="Current folder">
+          </div>
+          <ul id="brList" class="list" tabindex="0"></ul>
+          <div id="brMsg" class="panel-msg"></div>
+        </section>
+        <section class="panel presets">
+          <div class="panel-head">Preset Browser</div>
+          <ul id="presetList" class="list" tabindex="0"></ul>
+          <div class="panel-foot"><button id="applyPreset" class="mini wide" disabled>Apply to selected</button></div>
+        </section>
+      </aside>
+
+      <!-- Right: Queue + Encoding -->
+      <main class="right">
+        <section class="panel queue">
+          <div class="panel-head">
+            <span>Queue <span id="queueCount" class="count"></span></span>
+            <span class="head-tools">
+              <button id="outAll" class="mini" title="Set the output folder for selected (or all waiting) items">Output folder&hellip;</button>
+              <button id="clearDone" class="mini" title="Remove finished items">Clear finished</button>
+            </span>
+          </div>
+          <div class="table-wrap">
+            <div id="empty" class="empty">
+              <div class="empty-title">The queue is empty</div>
+              <p>Drag video files or a FilmCraft project here, double-click one in the Media Browser,<br>or use <b>+ Add Source</b> / <b>FilmCraft Project&hellip;</b></p>
+            </div>
+            <table id="qTable" class="qtable" hidden>
+              <thead><tr><th class="c-src">Source</th><th class="c-fmt">Format</th><th class="c-pre">Preset</th><th class="c-out">Output File</th><th class="c-st">Status</th></tr></thead>
+              <tbody id="qBody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="panel encoding">
+          <div class="panel-head">Encoding</div>
+          <div class="enc-body">
+            <div id="encActive" class="enc-active"><div class="enc-idle">Idle</div></div>
+            <ul id="encLog" class="enc-log" aria-label="Activity log"></ul>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" role="status" hidden></div>
+
+  <!-- FilmCraft project: choose sequences -->
+  <dialog id="projDlg">
+    <form method="dialog" class="dlg-head">
+      <h2 id="projTitle">Add sequences</h2>
+      <button class="icon" aria-label="Close">&#10005;</button>
+    </form>
+    <p class="hint" id="projMeta"></p>
+    <ul id="projWarnings" class="warnings" hidden></ul>
+    <div class="table-head2">
+      <label class="check"><input id="projAll" type="checkbox" checked> Select all</label>
+      <label class="check"><input id="projInternal" type="checkbox"> Show nested &amp; multicam</label>
+    </div>
+    <ul id="projSeqs" class="seq-list"></ul>
+    <div class="actions">
+      <span id="projMsg" class="msg err" role="alert"></span>
+      <button id="projAdd" class="primary">Add to queue</button>
+    </div>
+  </dialog>
+
+  <!-- Servers -->
+  <dialog id="serversDlg">
+    <form method="dialog" class="dlg-head">
+      <h2>Connect to EncoderCraft Server</h2>
+      <button class="icon" aria-label="Close">&#10005;</button>
+    </form>
+    <p class="hint">Servers run <code>encraft-d</code> and are reached through an SSH tunnel. Nothing is exposed on the server's network. Servers encode media files; FilmCraft project sequences always render on this PC.</p>
+    <ul id="serverList" class="server-list"></ul>
+    <div class="actions"><button id="deployBtn" class="primary">Deploy Server&hellip;</button></div>
+  </dialog>
+
+  <!-- Deploy wizard -->
+  <dialog id="deployDlg">
+    <form method="dialog" class="dlg-head">
+      <h2>Deploy EncoderCraft Server</h2>
+      <button class="icon" aria-label="Close" id="deployClose">&#10005;</button>
+    </form>
+    <div id="deployForm">
+      <p class="hint">Needs a Linux x86_64 host with systemd, and root or a sudo-capable user. FFmpeg is installed if missing.</p>
+      <div class="grid">
+        <div class="field"><label for="dName">Display name</label><input id="dName" type="text" placeholder="Render box"></div>
+        <div class="field"><label for="dHost">Server IP / hostname</label><input id="dHost" type="text" spellcheck="false"></div>
+        <div class="field"><label for="dPort">SSH port</label><input id="dPort" type="number" value="22" min="1" max="65535"></div>
+        <div class="field"><label for="dUser">SSH username</label><input id="dUser" type="text" spellcheck="false" autocomplete="off"></div>
+        <div class="field wide">
+          <div class="seg" role="radiogroup" aria-label="Authentication">
+            <label><input type="radio" name="dAuth" value="password" checked> Password</label>
+            <label><input type="radio" name="dAuth" value="key"> Private key</label>
+          </div>
+        </div>
+        <div class="field wide" id="dPwRow"><label for="dPassword">Password</label><input id="dPassword" type="password" autocomplete="off"></div>
+        <div class="field wide" id="dKeyRow" hidden>
+          <div class="label-row"><label for="dKey">Key file path</label><button id="dBrowseKey" class="mini">Browse&hellip;</button></div>
+          <input id="dKey" type="text" spellcheck="false">
+          <label for="dPass" class="sub">Key passphrase (if any)</label>
+          <input id="dPass" type="password" autocomplete="off">
+        </div>
+        <div class="field wide">
+          <label for="dSudo">sudo password (only if the user is not root)</label>
+          <input id="dSudo" type="password" autocomplete="off">
+          <p class="hint">Used for this deployment only and never saved. Leave blank for root or passwordless sudo.</p>
+        </div>
+        <div class="field wide">
+          <div class="label-row"><label for="dBinary">encraft-d binary (Linux x86_64)</label><button id="dBrowseBin" class="mini">Browse&hellip;</button></div>
+          <input id="dBinary" type="text" spellcheck="false">
+        </div>
+        <div class="field wide">
+          <label for="dRoots">Media folders on the server (one per line)</label>
+          <textarea id="dRoots" rows="2" spellcheck="false">/mnt</textarea>
+          <p class="hint">Jobs can only read and write beneath these. Mount SMB/NFS shares under one of them.</p>
+        </div>
+        <div class="field wide check"><label><input id="dFfmpeg" type="checkbox" checked> Install FFmpeg if missing</label></div>
+      </div>
+      <div id="trustBox" class="trust" hidden>
+        <strong>Verify the server's identity</strong>
+        <p>The server presented this SSH host key. Compare it with the fingerprint on the machine
+          (<code>ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub</code>) before continuing.</p>
+        <code id="fpValue" class="fp"></code>
+        <label class="check"><input id="trustOk" type="checkbox"> This fingerprint is correct</label>
+      </div>
+      <div class="actions">
+        <span id="deployMsg" class="msg err" role="alert"></span>
+        <button id="checkHostBtn" class="primary">Check host key&hellip;</button>
+        <button id="startDeployBtn" class="primary" hidden disabled>Deploy</button>
+      </div>
+    </div>
+    <div id="deployProgress" hidden>
+      <ol id="steps" class="steps"></ol>
+      <div class="bar" id="uploadBar" hidden><div class="fill"></div></div>
+      <pre id="deployLog" class="log"></pre>
+      <div class="actions">
+        <span id="deployResult" class="msg" role="status"></span>
+        <button id="deployDone" class="primary" hidden>Done</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Reconnect secret -->
+  <dialog id="secretDlg">
+    <form method="dialog" class="dlg-head">
+      <h2 id="secretTitle">Connect</h2>
+      <button class="icon" aria-label="Close">&#10005;</button>
+    </form>
+    <div class="field">
+      <label for="secretInput" id="secretLabel">Password</label>
+      <input id="secretInput" type="password" autocomplete="off">
+    </div>
+    <div class="actions">
+      <span id="secretMsg" class="msg err" role="alert"></span>
+      <button id="secretGo" class="primary">Connect</button>
+    </div>
+  </dialog>
+
+  <!-- Folder / file picker for servers -->
+  <dialog id="browseDlg">
+    <form method="dialog" class="dlg-head">
+      <h2 id="browseTitle">Choose</h2>
+      <button class="icon" aria-label="Close">&#10005;</button>
+    </form>
+    <div class="inline">
+      <button id="browseUp" class="mini" aria-label="Up one folder">&uarr; Up</button>
+      <input id="browsePath" type="text" spellcheck="false" aria-label="Current folder">
+      <button id="browseGo" class="mini">Go</button>
+    </div>
+    <ul id="browseList" class="browse-list"></ul>
+    <div class="actions">
+      <span id="browseMsg" class="msg err" role="alert"></span>
+      <button id="browseCancel">Cancel</button>
+      <button id="browseSelect" class="primary">Select</button>
+    </div>
+  </dialog>
+
+  <script src="app.js"></script>
+</body>
+</html>
