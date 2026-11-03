@@ -1,4 +1,4 @@
-﻿# EncoderCraft
+# EncoderCraft
 
 Media encoder for the ArtCraft suite. Renders FilmCraft project sequences and ordinary media files from an Adobe Media Encoder style queue, locally or on headless Linux servers reached over SSH.
 
@@ -9,3 +9,9 @@ Media encoder for the ArtCraft suite. Renders FilmCraft project sequences and or
 - `encoder-app` Tauri desktop app
 
 Build the Linux daemon with `scripts/build-daemon-linux.ps1`; build the app with `cargo build --release -p encoder-app`.
+
+## License
+
+Licensed under either of the MIT License (`LICENSE-MIT`) or the Apache License, Version 2.0 (`LICENSE-APACHE`), at your option, the same terms as FilmCraft.
+
+The ArtCraft name and logos are trademarks of the ArtCraft Team and are not covered by this license.
